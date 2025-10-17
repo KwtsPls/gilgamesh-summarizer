@@ -21,8 +21,8 @@ class KnowledgeGraph:
         self.triple_dict = {}
 
         # Load N-Triples formatted files
-        self.graph.parse(graph_file, format="nt")
-        self.ontology.parse(ontology_file, format="turtle")
+        self.graph.parse(graph_file)
+        self.ontology.parse(ontology_file)
 
     def create_clusters(self,prune_top_nodes=6,max_cluster_size=500):
         # convert RDFLib graph to Networkx MultiDiGraph

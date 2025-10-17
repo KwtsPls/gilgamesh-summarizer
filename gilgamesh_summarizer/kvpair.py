@@ -24,7 +24,7 @@ class KvPair:
         return self.old_predicate
 
     def getTriple(self):
-        return f"{self.subject} <{self.old_predicate}> \"{self.value}\" .\n"
+        return f"{self.subject} <{self.key}> \"{self.value}\" .\n"
 
     def toCSVEntry(self, key):
         return f"{self.subject},{self.key},{self.value}"
