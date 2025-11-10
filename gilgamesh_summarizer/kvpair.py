@@ -1,3 +1,5 @@
+from rdflib.namespace import split_uri
+
 class KvPair:
     def __init__(self, key=None, value=None):
         self.key = key
@@ -24,10 +26,14 @@ class KvPair:
         return self.old_predicate
 
     def getTriple(self):
-        return f"{self.subject} <{self.key}> \"{self.value}\" .\n"
+        prefix, _ = split_uri(self.old_predicate)
+        if self.subject==None or self.key==None or self.value==None:
+            return None
+        return f"{self.subject} <{prefix + self.key}> \"{self.value}\" .\n"
 
     def toCSVEntry(self, key):
-        return f"{self.subject},{self.key},{self.value}"
+        prefix, _ = split_uri(self.old_predicate)
+        return f"{self.subject},{prefix + self.key},{self.value}"
 
     def toCsvEntryExtraProperties(self, key, extra_props):
         base = self.toCSVEntry(key)

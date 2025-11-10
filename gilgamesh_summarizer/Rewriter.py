@@ -50,12 +50,8 @@ class Rewriter:
                         continue
                     if p_str == "http://purl.org/dc/terms/identifier" and o_str.strip('"') in s_str:
                         ostr = o_str.strip('\"')
-                        writer.write(f"{s_str} {p_str} <{self.RESOURCE}{ostr}> ." "\n")
-                        continue
-                    if p_str == "http://xmlns.com/foaf/0.1/accountName":
-                        identifier = o_str.strip('"')
-                        writer.write(f"{s_str} {p_str} <{self.RESOURCE}{identifier}> ." "\n")
-                        writer.write(f"{s_str} <http://purl.org/dc/terms/identifier> <{self.RESOURCE}{identifier}> ." "\n")
+                        if ostr !=  None:
+                            writer.write(f"{s_str} {p_str} <{self.RESOURCE}{ostr}> ." "\n")
                         continue
                     if p_str == "http://purl.org/dc/terms/spatial":
                         if 'POLYGON((' in o_str:
@@ -67,7 +63,8 @@ class Rewriter:
                     elif p_str == "http://www.w3.org/ns/locn#geometry":
                         p_str = "http://www.opengis.net/ont/geosparql#asWKT"
 
-                    writer.write(f"{s_str} {p_str} {o_str} ." "\n")
+                    if s_str!=None and p_str!=None and o_str!=None:
+                        writer.write(f"{s_str} {p_str} {o_str} ." "\n")
 
                 props = set()
 
@@ -75,7 +72,9 @@ class Rewriter:
                 if export_to_csv and key not in self.metrics_map and kv.getSubject():
                     csv_writer.write(kv.toCSVEntry(key) + "\n")
                 if kv.getSubject():
-                    writer.write(kv.getTriple())
+                    triple_string = kv.getTriple()
+                    if triple_string!=None:
+                        writer.write(triple_string)
                     props.add(kv.getDataProperty())
 
             for key, issued_val in self.metrics_map.items():
@@ -83,7 +82,8 @@ class Rewriter:
                 if kv and kv.getSubject():
                     if export_to_csv:
                         csv_writer.write(kv.toCsvEntryExtraProperties(key, [("http://purl.org/dc/terms/issued", issued_val)]) + "\n")
-                    writer.write(f"{kv.getSubject()} <{self.URI}metricIssued> {issued_val} ." "\n")
+                    if kv.getSubject() != None and issued_val != None:    
+                        writer.write(f"{kv.getSubject()} <{self.URI}metricIssued> {issued_val} ." "\n")
 
             for prop in props:
                 print(prop)

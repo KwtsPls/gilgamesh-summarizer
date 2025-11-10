@@ -5,6 +5,7 @@ import torch
 from typing import List, Dict, Tuple
 import rdflib
 from rdflib.namespace import split_uri
+from tqdm import tqdm
 
 
 class Summarizer:
@@ -44,8 +45,37 @@ Yes/No:<key>:<value>
 
     def classify_node(self, triples: str) -> str:
         prompt = self.template.format(triples) + self.tokenizer.eos_token
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
-        outputs = self.model.generate(**inputs, max_new_tokens=20, do_sample=False)
+
+        # Set safe max sequence length (Mistral = 2048, Llama2 = 4096 — adjust if needed)
+        MAX_LEN = 2048
+
+        # Tokenize with truncation to avoid RoPE tensor mismatch
+        inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=MAX_LEN,
+        ).to(self.model.device)
+
+        try:
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=20,
+                do_sample=False
+            )
+        except RuntimeError as e:
+            # Automatic fallback if Unsloth fast RoPE causes mismatch
+            if "tensor a" in str(e) and "tensor b" in str(e):
+                import unsloth
+                unsloth.disable_fast_kernels()
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=20,
+                    do_sample=False
+                )
+            else:
+                raise e
+
         decoded = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
         # Parse only the last response segment
@@ -61,7 +91,7 @@ Yes/No:<key>:<value>
         triples_dict: Dict[rdflib.term.URIRef, List[Tuple]]
     ):
         results = {}
-        for cluster in clusters:
+        for cluster in tqdm(clusters, desc="Processing clusters", unit="cluster"):
             for node in cluster:
                 if node in triples_dict:
                     if triples_dict.get(node,-1)!=-1:
@@ -72,11 +102,12 @@ Yes/No:<key>:<value>
         for (k,v) in results.items():
             if 'yes' in str(v.lower()) or 'yes'==str(v.lower()):
                 tokens = v.split(":")
-                key = tokens[1]
-                value = tokens[2]
-                type = self.__find_type(term.URIRef(k),key,value,triples_dict)
-                if type != None:
-                    self.kvpairs.add(type)
+                if len(tokens)>=3:
+                    key = tokens[1]
+                    value = tokens[2]
+                    type = self.__find_type(term.URIRef(k),key,value,triples_dict)
+                    if type != None:
+                        self.kvpairs.add(type)
 
 
         self.results = results
@@ -117,7 +148,7 @@ Yes/No:<key>:<value>
         else:
             ontology = self.kg.ontology
 
-            for (kv,k,v) in self.results:
+            for (kv,k,v) in self.kvpairs:
                 prefix , localname_kv = split_uri(kv)
                 _ , localname_k = split_uri(k)
                 _ , localname_v = split_uri(v)
@@ -147,7 +178,11 @@ Yes/No:<key>:<value>
         for s, p, o in graph:
             res = candidates.get(s,None)
             if s != None:
-                candidate_mapping = self._check_results(self, p)
+                candidate_mapping = None
+                for (kv,k,v) in self.kvpairs:
+                    if k == p:
+                        candidate_mapping = kv,k,v
+
                 if candidate_mapping != None:
                     self._update_mappings(candidate_mapping, res, o)
 
@@ -156,7 +191,9 @@ Yes/No:<key>:<value>
         (kv,k,v) = candidate_mapping
         _,kv = split_uri(kv)
         _,k = split_uri(k) 
-        _,v = split_uri(v) 
+        _,v = split_uri(v)
+        _,old_pred = split_uri(old_pred)
+        o = str(o)
 
         entry = self.mappings.get(kv,None)
         if entry == None:
@@ -177,20 +214,23 @@ Yes/No:<key>:<value>
 
             self.mappings[kv] = (_k,_v,_entry_dict)
 
-    def _check_results(self, predicate):
-        for (kv,k,v) in self.results:
-            if k == predicate:
-                return (kv,k,v)
-        return None
+    def __find_type(self, node, key, value,triples_dict):
+        if value is None:
+            return None
+        if value=="":
+            return None
+        if value=='':
+            return None
+        if not value:
+            return None
 
-    def __find_type(self,node,key,value,triples_dict):
         edges = triples_dict.get(node,-1)
         if edges==-1:
             return None
         else:
             type=""
             k=""
-            v=""
+            v=None
             for (p,o) in edges:
                 if p == RDF.type:
                     type = o
@@ -199,5 +239,7 @@ Yes/No:<key>:<value>
                 if value==str(o):
                     v = p
 
+            if v is None:
+                return None
             return (type,k,v)
 

@@ -1,19 +1,13 @@
 from rdflib.plugins.sparql import parser
 from rdflib.plugins.sparql.algebra import translateQuery
 from rdflib.plugins.sparql.algebra import translateAlgebra
-from rdflib.plugins.sparql.algebra import pprintAlgebra
 from rdflib.plugins.sparql.algebra import CompValue
-from rdflib.plugins.sparql.parserutils import prettify_parsetree
 from rdflib.term import Variable
 from rdflib.term import Literal
 from rdflib.term import URIRef
 from rdflib import Graph
-from rdflib.namespace import split_uri
-from sparql_queries import Queries
 from pyparsing import ParseResults
 from rdflib.plugins.sparql.parserutils import Expr
-from copy import deepcopy
-import traceback
 
 
 class ParseException(Exception):
